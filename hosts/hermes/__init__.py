@@ -303,11 +303,12 @@ class MemoriesProvider(_Base):
     def system_prompt_block(self) -> str:
         """STATIC provider info. Recall goes through prefetch, never here.
 
-        WHY THE SKILL IS NAMED HERE AND NOT LEFT TO DISCOVERY. `register_skill` makes a
-        plugin skill LOADABLE but not FINDABLE: hermes keeps plugin skills out of
-        `<available_skills>` on purpose ("explicit loads only", its own docstring), so a
-        model never told the qualified name will never call `skill_view` with it. This block
-        is the one text guaranteed to be read, so the pointer belongs here.
+        WHY THE SKILL IS NAMED HERE AND NOT LEFT TO DISCOVERY. When this was written,
+        `register_skill` made a plugin skill LOADABLE but not FINDABLE: hermes kept plugin
+        skills out of `<available_skills>` ("explicit loads only", its docstring then), so a
+        model never told the qualified name would never call `skill_view` with it. hermes
+        v0.23.4 lists them, with the description `_register_skills` passes. The pointer
+        stays: this block is the one text guaranteed to be read, on any hermes version.
 
         AND ONLY THE POINTER. The block is injected on every turn of every session; the
         skill it points at is ~9.3k and is paid for only when loaded. Detail that migrates
@@ -1026,13 +1027,20 @@ def _register_skills(ctx) -> None:
 
     A `pathlib.Path` IS REQUIRED, not a str: hermes calls `path.exists()` on what it is
     given, and the AttributeError from a str is precisely the silent-disable above.
+
+    THE DESCRIPTION IS PASSED, because hermes builds the skill's `<available_skills>` row from
+    it and from nothing else. Without it the row was the bare name (hermes v0.23.4, measured
+    2026-11-25), so the model saw `memories:memory` with no reason to load it. hermes clips
+    the row to about 57 characters, which is why each SKILL.md opens on its trigger.
+    The keyword has been in `register_skill`'s signature since at least hermes of 2026-08.
     """
     register_skill = getattr(ctx, "register_skill", None)
     if register_skill is None:
         return
     for skill in skills.find():
         try:
-            register_skill(skill.name, Path(skill.path))
+            register_skill(skill.name, Path(skill.path),
+                           description=skills.description(skill.path))
         except Exception as exc:  # noqa: BLE001 -- see docstring: never cost the provider
             _note(f"skill {skill.name!r} not registered: {type(exc).__name__}: {exc}")
 

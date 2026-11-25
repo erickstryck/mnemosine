@@ -1,6 +1,6 @@
 ---
 name: repo-index
-description: Searches indexed code repositories semantically via `qctx repos` — across ONE repo or ALL of them at once, instead of grepping a tree or reading files to find where something lives. Use it when the question is "where is X handled", "does any project here do Y", "which repo mentions Z"; when the user asks to index a project for later; and before concluding a subject is absent from their codebases. Searching every repository at once is the thing grep on one tree cannot do.
+description: Use to find where code lives, in one repo or all. Searches indexed code repositories semantically via `qctx repos` — across ONE repo or ALL of them at once, instead of grepping a tree or reading files to find where something lives. Use it when the question is "where is X handled", "does any project here do Y", "which repo mentions Z"; when the user asks to index a project for later; and before concluding a subject is absent from their codebases. Searching every repository at once is the thing grep on one tree cannot do.
 ---
 
 # repo-index

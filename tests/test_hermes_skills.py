@@ -49,6 +49,7 @@ class RecordingCtx:
     def __init__(self):
         self.provider = None
         self.skills = {}
+        self.descriptions = {}
 
     def register_memory_provider(self, provider):
         self.provider = provider
@@ -65,6 +66,7 @@ class RecordingCtx:
         if not path.exists():
             raise FileNotFoundError(f"SKILL.md not found at {path}")
         self.skills[name] = path
+        self.descriptions[name] = description
 
 
 class TestTheCatalogueReachesTheHost(unittest.TestCase):
@@ -82,6 +84,20 @@ class TestTheCatalogueReachesTheHost(unittest.TestCase):
         self.assertEqual(
             {name: str(path) for name, path in self.ctx.skills.items()},
             skills.paths())
+
+    def test_each_skill_is_handed_the_description_its_file_declares(self):
+        """hermes builds the skill's `<available_skills>` row from this argument alone.
+
+        Without it the row is the bare name, measured on hermes v0.23.4 (2026-11-25):
+        `_plugin_skill_prompt_rows` returned `('memories:memory', '')` while the superpowers
+        skills, which pass one, came back with their trigger. A model reading a bare name has
+        no reason to load the skill that tells it to search memory before answering.
+        """
+        expected = {s.name: skills.description(s.path) for s in skills.find()}
+        self.assertEqual(self.ctx.descriptions, expected)
+        for name, text in self.ctx.descriptions.items():
+            with self.subTest(skill=name):
+                self.assertTrue(text, "registered with an empty description")
 
     def test_registering_the_skills_does_not_cost_the_memory_provider(self):
         """The provider is the reason the plugin exists; skills ride along, never replace."""
@@ -221,12 +237,67 @@ class TestTheNamespaceIsSpelledOnce(unittest.TestCase):
                 self.assertIn(expected, text)
 
 
-class TestTheModelIsTOLDTheSkillExists(unittest.TestCase):
-    """Registration makes a plugin skill loadable; it does NOT make it findable.
+#: hermes' default width for a row of `<available_skills>`: `SKILL_PROMPT_DESC_LIMIT` in
+#: `agent/skill_utils.py`, also `skills.index_desc_limit: 60` in `hermes_cli/config_defaults.py`
+#: (v0.23.4). A profile can widen it to 1024 but never narrow it, so 60 is the worst case.
+HERMES_INDEX_WIDTH = 60
 
-    hermes keeps plugin skills out of `<available_skills>` ("explicit loads only", per
-    `register_skill`'s own docstring), so a model never told the qualified name will never
-    call skill_view with it. The pointer is therefore part of the fix, not decoration.
+
+def hermes_index_row(desc: str, limit: int = HERMES_INDEX_WIDTH) -> str:
+    """hermes' `clip_skill_description`, copied: cut at a word boundary, trim, add '...'.
+
+    Copied rather than imported because this suite never imports hermes. The copy is small
+    and the property below holds for any clip that keeps whole words up to the limit.
+    """
+    if len(desc) <= limit:
+        return desc
+    head = desc[:limit - 2]
+    boundary = re.search(r"\s\S*$", head)
+    if not boundary or boundary.start() == 0:
+        return desc[:limit - 3] + "..."
+    return re.sub(r"[\s.,;:\-\u2013\u2014(/]+$", "", head[:boundary.start()]) + "..."
+
+
+def lead_sentence(desc: str) -> str:
+    return desc.split(". ", 1)[0]
+
+
+class TestTheTriggerSurvivesHermesIndexClip(unittest.TestCase):
+    """hermes cuts each `<available_skills>` row to about 57 characters.
+
+    So passing the description is not enough on its own: the description that shipped in
+    1.3.0 came out as 'Long-term memory in Qdrant, via `qctx memory` — BOTH...', and the
+    instruction to search before answering was the part that got cut. The trigger has to be
+    the FIRST sentence, and that sentence has to fit.
+    """
+
+    def test_each_lead_sentence_survives_the_clip_whole(self):
+        for skill in skills.find():
+            with self.subTest(skill=skill.name):
+                desc = skills.description(skill.path)
+                self.assertIn(lead_sentence(desc), hermes_index_row(desc))
+
+    def test_each_lead_sentence_says_WHEN_to_use_the_skill(self):
+        for skill in skills.find():
+            with self.subTest(skill=skill.name):
+                self.assertRegex(lead_sentence(skills.description(skill.path)), r"^Use ")
+
+    def test_the_memory_row_tells_the_model_to_SEARCH_BEFORE_ANSWERING(self):
+        """The property this release exists for, read off the row hermes actually shows."""
+        row = hermes_index_row(skills.description(skills.paths()[PRIMARY_SKILL])).lower()
+        for phrase in ("before answering", "search"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, row)
+
+
+class TestTheModelIsTOLDTheSkillExists(unittest.TestCase):
+    """The pointer in the system prompt block names the skill outright.
+
+    When this was written, hermes kept plugin skills out of `<available_skills>` ("explicit
+    loads only", per `register_skill`'s docstring then), and the pointer was the only way the
+    model learnt the name. hermes v0.23.4 lists them (`_plugin_skill_prompt_rows`, measured
+    2026-11-25), so the index row now carries the trigger too. The pointer stays: it is the
+    line that ties the archive to the procedure, and older hosts still need it.
     """
 
     def block(self) -> str:

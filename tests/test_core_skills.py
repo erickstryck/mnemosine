@@ -212,5 +212,69 @@ class TestTheTwoShapesAgree(unittest.TestCase):
         self.assertEqual(sorted(skills.paths(box)), ["only-one"])
 
 
+def _frontmatter(path: str) -> str:
+    """The text between the opening `---` and the next one, read independently of the core."""
+    text = Path(path).read_text(encoding="utf-8")
+    return text.split("\n---", 1)[0].split("---\n", 1)[1]
+
+
+class TestTheDescriptionIsReadFromTheFrontmatter(unittest.TestCase):
+    """`description()` hands a host the text it shows the model before the skill is loaded.
+
+    hermes builds its `<available_skills>` row from nothing else: a plugin skill registered
+    without a description is listed by name alone, which is how `memories:memory` reached
+    the index with no trigger at all (measured on hermes v0.23.4, 2026-11-25).
+    """
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+
+    def _write(self, body: str) -> str:
+        path = os.path.join(self.dir, "SKILL.md")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(body)
+        return path
+
+    def test_every_shipped_skill_gets_the_description_its_file_declares(self):
+        for skill in skills.find():
+            with self.subTest(skill=skill.name):
+                declared = re.search(r"(?m)^description: (.+)$", _frontmatter(skill.path))
+                self.assertIsNotNone(declared, "the shipped frontmatter has no description")
+                self.assertEqual(skills.description(skill.path), declared.group(1).strip())
+
+    def test_a_FOLDED_block_is_joined_into_one_line(self):
+        """`description: >-` is the shape YAML forces when the text holds ': '."""
+        path = self._write("---\nname: x\ndescription: >-\n  Use when a. Then\n  do b.\n"
+                           "other: y\n---\n# x\n")
+        self.assertEqual(skills.description(path), "Use when a. Then do b.")
+
+    def test_a_QUOTED_description_loses_its_quotes(self):
+        path = self._write('---\nname: x\ndescription: "Use when a. Do b."\n---\n')
+        self.assertEqual(skills.description(path), "Use when a. Do b.")
+
+    def test_no_description_gives_EMPTY_and_does_not_raise(self):
+        """The skills are an accessory to the provider; a malformed one never aborts it."""
+        for body in ("# no frontmatter at all\n", "---\nname: x\n---\n# x\n", ""):
+            with self.subTest(body=body):
+                self.assertEqual(skills.description(self._write(body)), "")
+
+    def test_a_description_key_in_the_BODY_is_not_the_frontmatter_s(self):
+        path = self._write("---\nname: x\n---\ndescription: not this one\n")
+        self.assertEqual(skills.description(path), "")
+
+    def test_a_MISSING_file_gives_empty(self):
+        self.assertEqual(skills.description(os.path.join(self.dir, "absent.md")), "")
+
+    def test_every_shipped_description_is_a_VALID_plain_yaml_scalar(self):
+        """Both hosts parse this frontmatter as YAML. In a plain scalar, ': ' opens a nested
+        mapping and ' #' a comment, so one stray colon in a reworded description breaks the
+        skill for a strict parser while it still reads fine to a human."""
+        for skill in skills.find():
+            with self.subTest(skill=skill.name):
+                text = skills.description(skill.path)
+                self.assertNotIn(": ", text)
+                self.assertNotIn(" #", text)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -76,11 +76,14 @@ block state through both adapters and requires byte-identical output.
 **The skills reach the two hosts by different routes, and that asymmetry is load-bearing.**
 claude-code discovers `skills/` by itself. hermes does not: its loader hands the plugin a
 context and registers only what `register()` explicitly asks for, so the adapter walks
-`core/skills.py` and hands over each one. hermes also keeps plugin skills out of the
-available-skills list it injects (explicit loads only), so registering a skill
-makes it loadable but not findable. That is why `system_prompt_block()` names
-`memories:memory` outright: without the pointer the model is never told the name it would
-have to ask for. The skills were reachable on claude-code and unreachable on hermes for
+`core/skills.py` and hands over each one. Older hermes kept plugin skills out of the
+available-skills list it injects (explicit loads only), so registering a skill made it
+loadable but not findable. That is why `system_prompt_block()` names `memories:memory`
+outright: without the pointer the model is never told the name it would have to ask for.
+Current hermes lists plugin skills (measured on v0.23.4), but builds each row only from the
+description the plugin passes, clipped to about 57 characters. So the adapter passes each
+skill's frontmatter description, and every `SKILL.md` opens on a short `Use ...` trigger
+that survives the clip. The skills were reachable on claude-code and unreachable on hermes for
 exactly as long as the adapter registered the provider and nothing else.
 
 The hermes install is a **symlink** into `$HERMES_HOME/plugins/memories`, one level deep and no

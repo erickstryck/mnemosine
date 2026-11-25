@@ -44,9 +44,9 @@ SKILLS_DIR = os.path.join(
 class Skill(NamedTuple):
     """One skill: the name a host registers it under, and the file to read.
 
-    Deliberately two fields. A host that needs the description parses the file -- putting it
-    here would make this module read and parse every skill on import, for callers that only
-    wanted to know which ones exist.
+    Deliberately two fields. A host that needs the description calls `description(path)` --
+    putting it here would make this module read and parse every skill on import, for callers
+    that only wanted to know which ones exist.
     """
 
     name: str
@@ -73,6 +73,54 @@ def find(skills_dir: str | None = None) -> Iterator[Skill]:
         path = os.path.join(root, name, SKILL_FILE)
         if os.path.isfile(path):
             yield Skill(name=name, path=path)
+
+
+def description(path: str) -> str:
+    """The `description` from the YAML frontmatter of the skill at *path*, as one line.
+
+    WHY A HOST NEEDS IT. claude-code reads the frontmatter itself. hermes does not: it lists
+    a plugin skill in `<available_skills>` with whatever description the plugin passes to
+    `register_skill`, and with none the row is the bare name -- measured on hermes v0.23.4,
+    where `memories:memory` showed no trigger at all.
+
+    A SUBSET OF YAML, ON PURPOSE. The package is stdlib-only, so this reads the shapes a
+    description takes in practice: a plain or quoted line, a folded or literal block
+    (`>-`, `|`), and indented continuation lines, all joined with single spaces because the
+    reader is a one-line index row. `tests/test_core_skills.py` holds the shipped files to a
+    plain scalar a strict parser also accepts.
+
+    Never raises: a missing file, no frontmatter or no description all give "". The skills
+    are an accessory to the memory provider and must not take it down.
+    """
+    try:
+        with open(path, encoding="utf-8") as fh:
+            lines = fh.read().splitlines()
+    except (OSError, UnicodeDecodeError):
+        return ""
+    if not lines or lines[0].strip() != "---":
+        return ""
+
+    parts: list[str] = []
+    collecting = False
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        if collecting:
+            if line[:1] in (" ", "\t") or not line.strip():
+                parts.append(line.strip())
+                continue
+            break
+        if line.startswith("description:"):
+            first = line[len("description:"):].strip()
+            if first[:1] not in (">", "|"):
+                parts.append(first)
+            collecting = True
+
+    text = " ".join(p for p in parts if p)
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in ("'", '"'):
+        text = text[1:-1]
+
+    return text
 
 
 def paths(skills_dir: str | None = None) -> dict[str, str]:

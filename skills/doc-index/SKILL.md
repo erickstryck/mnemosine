@@ -1,6 +1,6 @@
 ---
 name: doc-index
-description: Indexes a long document in Qdrant and searches only the relevant chunks, via `qctx docs` — instead of reading the whole file into context. Use it BEFORE reading a large file (log, dump, transcript, extensive code, report) when the question is about one part of it; and when the user asks you to keep a document for later reference. Also for searching documentation already kept.
+description: Use before reading a large file. Search only its chunks. Indexes a long document in Qdrant and searches only the relevant chunks, via `qctx docs` — instead of reading the whole file into context. Use it BEFORE reading a large file (log, dump, transcript, extensive code, report) when the question is about one part of it; and when the user asks you to keep a document for later reference. Also for searching documentation already kept.
 ---
 
 # doc-index

@@ -1,6 +1,6 @@
 ---
 name: memory
-description: Long-term memory in Qdrant, via `qctx memory` — BOTH DIRECTIONS. Search first, then save. Use it when the user asks you to save/persist/remember something; AND — mandatory — before answering a non-trivial question, starting an investigation, asserting a fact about the codebase, an SDK, a platform or a past decision, proposing a design, or reversing an earlier conclusion. If precedent might exist, search before answering.
+description: Use before answering. Search first, then save. Long-term memory in Qdrant, via `qctx memory` — BOTH DIRECTIONS. Use it when the user asks you to save/persist/remember something; AND — mandatory — before answering a non-trivial question, starting an investigation, asserting a fact about the codebase, an SDK, a platform or a past decision, proposing a design, or reversing an earlier conclusion. If precedent might exist, search before answering.
 ---
 
 # memory
